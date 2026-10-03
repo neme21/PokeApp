@@ -1,1 +1,89 @@
-module.exports={openapi:"3.0.3",info:{title:"Microservicio de Docentes - Uninpahu",version:"1.0.0",description:"API agnóstica Node.js nativo + PostgreSQL. Usa path params y query params."},paths:{"/docentes":{get:{summary:"Listar o buscar docentes",parameters:[{name:"nombre",in:"query",required:false,schema:{type:"string"}}],responses:{200:{description:"Listado de docentes"}}}},"/docentes/{id}":{get:{summary:"Consultar docente por id",parameters:[{name:"id",in:"path",required:true,schema:{type:"integer"}}],responses:{200:{description:"Docente encontrado"},404:{description:"No encontrado"}}}}}};
+module.exports = {
+  openapi: "3.0.0",
+
+  info: {
+    title: "API Docentes UNINPAHU",
+    version: "1.0.0",
+    description:
+      "Microservicio para consultar docentes.",
+  },
+
+  servers: [
+    {
+      url: "/",
+      description: "Servidor actual",
+    },
+  ],
+
+  paths: {
+    "/docentes": {
+      get: {
+        summary: "Obtener docentes",
+        description:
+          "Devuelve todos los docentes o permite buscar por nombre.",
+
+        parameters: [
+          {
+            name: "nombre",
+            in: "query",
+            required: false,
+            description:
+              "Nombre o parte del nombre del docente",
+
+            schema: {
+              type: "string",
+            },
+          },
+        ],
+
+        responses: {
+          200: {
+            description:
+              "Lista de docentes",
+          },
+
+          500: {
+            description:
+              "Error del servidor",
+          },
+        },
+      },
+    },
+
+    "/docentes/{id}": {
+      get: {
+        summary:
+          "Obtener un docente por ID",
+
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+
+            schema: {
+              type: "integer",
+            },
+          },
+        ],
+
+        responses: {
+          200: {
+            description:
+              "Información del docente",
+          },
+
+          404: {
+            description:
+              "Docente no encontrado",
+          },
+
+          500: {
+            description:
+              "Error del servidor",
+          },
+        },
+      },
+    },
+  },
+};
