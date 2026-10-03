@@ -44,3 +44,8 @@ Thumbs.db
 # =========================
 *.tmp
 *.temp
+.env
+backend/.env
+anime-service/.env
+.venv/
+__pycache__/

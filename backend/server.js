@@ -1,71 +1,38 @@
-const express = require("express");
-const cors = require("cors");
-
-const app = express();
-const PORT = 3000;
-
-// Middlewares
-app.use(cors());
-app.use(express.json());
-
-// Ruta para comprobar que el servidor funciona
-app.get("/", (req, res) => {
-  res.json({
-    mensaje: "Microservicio PokeApp funcionando",
-  });
-});
-
-// Ruta para buscar un Pokémon
-app.get("/pokemon/:nombre", async (req, res) => {
-  try {
-    const nombre = req.params.nombre.toLowerCase().trim();
-
-    console.log("Buscando Pokémon:", nombre);
-
-    // El BACKEND consulta PokeAPI
-    const respuesta = await fetch(
-      `https://pokeapi.co/api/v2/pokemon/${nombre}`
-    );
-
-    // Si PokeAPI no encuentra el Pokémon
-    if (!respuesta.ok) {
-      return res.status(404).json({
-        mensaje: "Pokémon no encontrado",
-      });
-    }
-
-    const datos = await respuesta.json();
-
-    // Seleccionamos únicamente los datos que necesita la app
-    const pokemon = {
-      id: datos.id,
-      nombre: datos.name,
-      altura: datos.height,
-      peso: datos.weight,
-
-      imagen:
-        datos.sprites.other["official-artwork"].front_default ||
-        datos.sprites.front_default,
-
-      movimientos: datos.moves
-        .slice(0, 2)
-        .map((movimiento) => movimiento.move.name),
-    };
-
-    // Enviamos el Pokémon al frontend
-    res.json(pokemon);
-  } catch (error) {
-    console.error("Error:", error);
-
-    res.status(500).json({
-      mensaje: "Error interno del servidor",
-    });
-  }
-});
-
-// Iniciar servidor
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `Microservicio ejecutándose en http://localhost:${PORT}`
-  );
-});
+require("dotenv").config();
+const express=require("express"); const cors=require("cors"); const {Pool}=require("pg"); const swaggerUi=require("swagger-ui-express"); const swaggerJsdoc=require("swagger-jsdoc");
+const app=express(); const PORT=process.env.PORT||3000;
+const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_URL?.includes("localhost")?false:{rejectUnauthorized:false}});
+app.use(cors()); app.use(express.json());
+const spec=swaggerJsdoc({definition:{openapi:"3.0.0",info:{title:"PokeAnime - Pokémon API",version:"1.0.0",description:"Microservicio Node.js que consulta una base PostgreSQL propia con 10 Pokémon."},servers:[{url:"/"}]},apis:[__filename]});
+app.use("/api-docs",swaggerUi.serve,swaggerUi.setup(spec)); app.get("/openapi.json",(_,res)=>res.json(spec));
+/** @openapi
+ * /:
+ *   get:
+ *     summary: Estado del microservicio
+ *     responses: { '200': { description: OK } }
+ */
+app.get("/",(_,res)=>res.json({mensaje:"Microservicio Pokémon funcionando",swagger:"/api-docs"}));
+/** @openapi
+ * /pokemon:
+ *   get:
+ *     summary: Lista los 10 Pokémon almacenados
+ *     responses: { '200': { description: Lista de Pokémon } }
+ */
+app.get("/pokemon",async(_,res)=>{try{const {rows}=await pool.query("SELECT * FROM pokemon ORDER BY id");res.json(rows.map(format));}catch(e){fail(res,e)}});
+/** @openapi
+ * /pokemon/{busqueda}:
+ *   get:
+ *     summary: Busca un Pokémon por nombre o ID
+ *     parameters:
+ *       - in: path
+ *         name: busqueda
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       '200': { description: Pokémon encontrado }
+ *       '404': { description: Pokémon no encontrado }
+ */
+app.get("/pokemon/:busqueda",async(req,res)=>{try{const q=req.params.busqueda.trim().toLowerCase(); const numeric=/^\d+$/.test(q); const {rows}=await pool.query(numeric?"SELECT * FROM pokemon WHERE id=$1":"SELECT * FROM pokemon WHERE LOWER(nombre)=$1",[numeric?Number(q):q]); if(!rows[0]) return res.status(404).json({mensaje:"Pokémon no encontrado en la base propia"});res.json(format(rows[0]));}catch(e){fail(res,e)}});
+function format(p){return {id:p.id,nombre:p.nombre,altura:Number(p.altura),peso:Number(p.peso),imagen:p.imagen,movimientos:[p.movimiento1,p.movimiento2]}}
+function fail(res,e){console.error(e);res.status(500).json({mensaje:"Error de base de datos"})}
+app.listen(PORT,"0.0.0.0",()=>console.log(`Pokémon API en puerto ${PORT}`));

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import { usePokemon } from "../../context/PokemonContext";
+import { POKEMON_API } from "../../config/api";
 
 export default function InicioScreen() {
   const { pokemon, setPokemon } = usePokemon();
@@ -31,7 +32,7 @@ export default function InicioScreen() {
       setCargando(true);
 
       const respuesta = await fetch(
-        `http://192.168.40.20:3000/pokemon/${busqueda.trim()}`
+        `${POKEMON_API}/pokemon/${busqueda.trim()}`
       );
 
       if (!respuesta.ok) {
