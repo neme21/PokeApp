@@ -1,0 +1,72 @@
+[
+  {
+    "id": 1,
+    "nombre": "Naruto Uzumaki",
+    "anime": "Naruto",
+    "descripcion": "Ninja de Konoha que sueña con convertirse en Hokage.",
+    "imagen": "https://cdn.myanimelist.net/images/characters/2/284121.jpg"
+  },
+  {
+    "id": 2,
+    "nombre": "Monkey D. Luffy",
+    "anime": "One Piece",
+    "descripcion": "Pirata que busca el tesoro One Piece y quiere ser Rey de los Piratas.",
+    "imagen": "https://cdn.myanimelist.net/images/characters/9/310307.jpg"
+  },
+  {
+    "id": 3,
+    "nombre": "Son Goku",
+    "anime": "Dragon Ball",
+    "descripcion": "Guerrero Saiyajin dedicado a superar sus límites y proteger la Tierra.",
+    "imagen": "https://cdn.myanimelist.net/images/characters/15/72546.jpg"
+  },
+  {
+    "id": 4,
+    "nombre": "Ichigo Kurosaki",
+    "anime": "Bleach",
+    "descripcion": "Joven con poderes de Shinigami que protege a los vivos y a las almas.",
+    "imagen": "https://cdn.myanimelist.net/images/characters/3/512677.jpg"
+  },
+  {
+    "id": 5,
+    "nombre": "Edward Elric",
+    "anime": "Fullmetal Alchemist",
+    "descripcion": "Alquimista estatal que busca recuperar lo perdido junto a su hermano.",
+    "imagen": "https://cdn.myanimelist.net/images/characters/9/72533.jpg"
+  },
+  {
+    "id": 6,
+    "nombre": "Tanjiro Kamado",
+    "anime": "Demon Slayer",
+    "descripcion": "Cazador de demonios que busca una cura para su hermana Nezuko.",
+    "imagen": "https://cdn.myanimelist.net/images/characters/6/386735.jpg"
+  },
+  {
+    "id": 7,
+    "nombre": "Satoru Gojo",
+    "anime": "Jujutsu Kaisen",
+    "descripcion": "Hechicero de jujutsu y maestro reconocido por su enorme poder.",
+    "imagen": "https://cdn.myanimelist.net/images/characters/15/422168.jpg"
+  },
+  {
+    "id": 8,
+    "nombre": "Izuku Midoriya",
+    "anime": "My Hero Academia",
+    "descripcion": "Estudiante de héroe que heredó el poder One For All.",
+    "imagen": "https://cdn.myanimelist.net/images/characters/7/299404.jpg"
+  },
+  {
+    "id": 9,
+    "nombre": "Eren Yeager",
+    "anime": "Attack on Titan",
+    "descripcion": "Joven decidido a luchar contra los titanes y descubrir la verdad de su mundo.",
+    "imagen": "https://cdn.myanimelist.net/images/characters/10/216895.jpg"
+  },
+  {
+    "id": 10,
+    "nombre": "Sailor Moon",
+    "anime": "Sailor Moon",
+    "descripcion": "Guerrera mágica que protege la Tierra junto a las Sailor Guardians.",
+    "imagen": "https://cdn.myanimelist.net/images/characters/7/413885.jpg"
+  }
+]
