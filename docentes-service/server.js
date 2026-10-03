@@ -1,152 +1,136 @@
 const http = require("http");
 const { Pool } = require("pg");
-const { URL } = require("url");
-const swagger = require("./swagger");
+const swaggerUi = require("swagger-ui-express");
+const swaggerDocument = require("./swagger");
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
-// Base de datos PostgreSQL
-const db = new Pool({
+// PostgreSQL de Render
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: process.env.DATABASE_URL
+    ? { rejectUnauthorized: false }
+    : false,
 });
 
-// Respuesta JSON
-function responder(res, codigo, datos) {
-  res.writeHead(codigo, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*"
-  });
-
-  res.end(JSON.stringify(datos));
+// CORS
+function cors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
-// Servidor
+function enviarJSON(res, status, data) {
+  cors(res);
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+  });
+  res.end(JSON.stringify(data));
+}
+
+// Servidor HTTP SIN Express
 const server = http.createServer(async (req, res) => {
+  cors(res);
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    return res.end();
+  }
 
   const url = new URL(req.url, `http://${req.headers.host}`);
+  const pathname = url.pathname;
 
-  try {
+  // Página inicial
+  if (req.method === "GET" && pathname === "/") {
+    return enviarJSON(res, 200, {
+      servicio: "Microservicio de docentes",
+      estado: "activo",
+      endpoints: {
+        docentes: "/docentes",
+        buscar: "/docentes?nombre=nombre",
+        detalle: "/docentes/1",
+        swagger: "/api-docs",
+      },
+    });
+  }
 
-    // Página principal
-    if (url.pathname === "/") {
-      return responder(res, 200, {
-        mensaje: "API Docentes UNINPAHU",
-        estado: "Funcionando"
-      });
-    }
-
-    // Documento OpenAPI
-    if (url.pathname === "/openapi.json") {
-      return responder(res, 200, swagger);
-    }
-
-    // Swagger
-    if (url.pathname === "/docs") {
-
-      const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>API Docentes UNINPAHU</title>
-
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css"
-        >
-      </head>
-
-      <body>
-
-        <div id="swagger-ui"></div>
-
-        <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-
-        <script>
-          SwaggerUIBundle({
-            url: "/openapi.json",
-            dom_id: "#swagger-ui"
-          });
-        </script>
-
-      </body>
-      </html>
-      `;
-
-      res.writeHead(200, {
-        "Content-Type": "text/html; charset=utf-8"
-      });
-
-      return res.end(html);
-    }
-
-    // ==========================================
-    // GET /docentes
-    // GET /docentes?nombre=Omar
-    // ==========================================
-
-    if (url.pathname === "/docentes") {
-
+  // GET /docentes
+  // GET /docentes?nombre=Juan
+  if (req.method === "GET" && pathname === "/docentes") {
+    try {
       const nombre = url.searchParams.get("nombre");
 
-      if (nombre) {
+      let resultado;
 
-        const resultado = await db.query(
-          `SELECT * FROM docentes
-           WHERE nombre ILIKE $1
-           OR apellido ILIKE $1`,
+      if (nombre) {
+        resultado = await pool.query(
+          `SELECT *
+           FROM docentes
+           WHERE LOWER(nombre) LIKE LOWER($1)
+           ORDER BY nombre`,
           [`%${nombre}%`]
         );
-
-        return responder(res, 200, resultado.rows);
+      } else {
+        resultado = await pool.query(
+          `SELECT *
+           FROM docentes
+           ORDER BY nombre`
+        );
       }
 
-      const resultado = await db.query(
-        "SELECT * FROM docentes ORDER BY id"
-      );
+      return enviarJSON(res, 200, resultado.rows);
+    } catch (error) {
+      console.error("Error consultando docentes:", error);
 
-      return responder(res, 200, resultado.rows);
+      return enviarJSON(res, 500, {
+        error: "Error consultando docentes",
+        detalle: error.message,
+      });
     }
+  }
 
-    // ==========================================
-    // GET /docentes/1
-    // ==========================================
+  // GET /docentes/1
+  const detalle = pathname.match(/^\/docentes\/(\d+)$/);
 
-    if (url.pathname.startsWith("/docentes/")) {
+  if (req.method === "GET" && detalle) {
+    try {
+      const id = detalle[1];
 
-      const id = url.pathname.split("/")[2];
-
-      const resultado = await db.query(
-        "SELECT * FROM docentes WHERE id = $1",
+      const resultado = await pool.query(
+        `SELECT *
+         FROM docentes
+         WHERE id = $1`,
         [id]
       );
 
       if (resultado.rows.length === 0) {
-        return responder(res, 404, {
-          mensaje: "Docente no encontrado"
+        return enviarJSON(res, 404, {
+          error: "Docente no encontrado",
         });
       }
 
-      return responder(res, 200, resultado.rows[0]);
+      return enviarJSON(res, 200, resultado.rows[0]);
+    } catch (error) {
+      console.error("Error consultando docente:", error);
+
+      return enviarJSON(res, 500, {
+        error: "Error consultando docente",
+        detalle: error.message,
+      });
     }
-
-    // Ruta no encontrada
-    responder(res, 404, {
-      mensaje: "Ruta no encontrada"
-    });
-
-  } catch (error) {
-
-    console.log(error);
-
-    responder(res, 500, {
-      mensaje: "Error del servidor"
-    });
   }
+
+  // Swagger JSON
+  if (req.method === "GET" && pathname === "/swagger.json") {
+    return enviarJSON(res, 200, swaggerDocument);
+  }
+
+  return enviarJSON(res, 404, {
+    error: "Ruta no encontrada",
+  });
 });
 
 server.listen(PORT, () => {
-  console.log(`Servidor iniciado en puerto ${PORT}`);
+  console.log(`Microservicio de docentes iniciado en puerto ${PORT}`);
 });
 

@@ -49,3 +49,5 @@ backend/.env
 anime-service/.env
 .venv/
 __pycache__/
+docentes-service/node_modules/
+docentes-service/.env

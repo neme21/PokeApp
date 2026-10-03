@@ -53,6 +53,16 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="docente"
+        options={{
+          title: "Docentes",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="datos"
         options={{
           title: "Datos",
@@ -61,17 +71,6 @@ export default function TabLayout() {
           ),
         }}
       />
-     <Tabs.Screen
-        name="docente"
-        options={{
-          title: "Docentes",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="school-outline" 
-            size={size} 
-            color={color} />
-          ),
-        }}
-      />
-     </Tabs>
+    </Tabs>
   );
 }

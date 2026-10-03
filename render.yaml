@@ -19,3 +19,14 @@ services:
         sync: false
       - key: MONGODB_DB
         value: pokeanime
+  - type: web
+    name: pokeanime-docentes-api
+    runtime: node
+    rootDir: docentes-service
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: NODE_ENV
+        value: production
