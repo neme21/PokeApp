@@ -3,7 +3,7 @@ import { ActivityIndicator, FlatList, Image, SafeAreaView, StyleSheet, Text, Tex
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
-const API_DOCENTES = process.env.EXPO_PUBLIC_DOCENTES_API_URL || "https://pokeanime-docentes-api.onrender.com";
+const API_DOCENTES = process.env.EXPO_PUBLIC_DOCeENTES_API_URL || "https://pokeanime-docentes-api.onrender.com";
 
 type Docente = { id:number; nombre:string; cargo?:string; programa?:string; correo?:string; descripcion?:string; imagen?:string };
 
