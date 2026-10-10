@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    Button,
-    FlatList,
-    Text,
-    View,
+  Alert,
+  Button,
+  FlatList,
+  Text,
+  View,
 } from "react-native";
 
 import {
-    guardarDocenteLocal,
-    obtenerDocentesLocales,
-    type DocenteLocal,
-} from "../database/docentesRepository.native.ts";
+  guardarDocenteLocal,
+  obtenerDocentesLocales,
+  type DocenteLocal,
+} from "../database/docentesRepository";
 
-import { inicializarBaseDatos } from "../database/sqlite.native";
+import { inicializarBaseDatos } from "../database/sqlite";
 
 export default function PruebaSQLite() {
   const [docentes, setDocentes] = useState<DocenteLocal[]>([]);
@@ -62,7 +62,7 @@ export default function PruebaSQLite() {
   return (
     <View style={{ flex: 1, padding: 20, paddingTop: 60 }}>
       <Text style={{ fontSize: 24, marginBottom: 20 }}>
-        Prueba SQLite
+        Prueba SQLite (datos locales)
       </Text>
 
       <Button

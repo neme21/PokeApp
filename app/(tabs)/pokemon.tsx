@@ -1,8 +1,8 @@
 import {
-    Image,
-    StyleSheet,
-    Text,
-    View,
+  Image,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 import { usePokemon } from "../../context/PokemonContext";

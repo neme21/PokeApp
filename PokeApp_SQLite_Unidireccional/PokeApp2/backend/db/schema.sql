@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS pokemon (
+  id INTEGER PRIMARY KEY,
+  nombre VARCHAR(60) UNIQUE NOT NULL,
+  altura DECIMAL(5,2) NOT NULL,
+  peso DECIMAL(7,2) NOT NULL,
+  imagen TEXT NOT NULL,
+  movimiento1 VARCHAR(100) NOT NULL,
+  movimiento2 VARCHAR(100) NOT NULL
+);

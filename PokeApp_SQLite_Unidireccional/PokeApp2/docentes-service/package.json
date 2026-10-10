@@ -1,0 +1,14 @@
+{
+  "name": "docentes-service",
+  "version": "1.0.0",
+  "description": "Microservicio de docentes UNINPAHU",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "pg": "^8.16.3",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1"
+  }
+}

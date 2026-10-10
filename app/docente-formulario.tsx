@@ -12,10 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { crearDocente, detalleDocente, editarDocente } from "../services/docentes";
 
-const API =
-  process.env.EXPO_PUBLIC_DOCENTES_API_URL ||
-  "https://pokeanime-docentes-api.onrender.com";
 
 type Campo = "nombre" | "apellido" | "cargo" | "programa" | "descripcion" | "imagen";
 type DatosDocente = Record<Campo, string>;
@@ -101,13 +99,7 @@ export default function DocenteFormulario() {
       setCargando(true);
       setError("");
       try {
-        const respuesta = await fetch(`${API}/docentes/${encodeURIComponent(id)}`, {
-          cache: "no-store",
-        });
-        if (!respuesta.ok) {
-          throw new Error(`No se pudo consultar el docente. HTTP ${respuesta.status}`);
-        }
-        const docente = await respuesta.json();
+        const docente = await detalleDocente(id);
         if (activo) {
           setDatos({
             nombre: docente.nombre ?? "",
@@ -153,34 +145,23 @@ export default function DocenteFormulario() {
     setError("");
     setMensajeExito("");
 
-    const metodo = editando ? "PUT" : "POST";
-    const url = editando
-      ? `${API}/docentes/${encodeURIComponent(id!)}`
-      : `${API}/docentes`;
 
     const cuerpo = {
       nombre: datos.nombre.trim(),
       apellido: datos.apellido.trim(),
       cargo: datos.cargo.trim(),
       programa: datos.programa.trim(),
-      descripcion: datos.descripcion.trim(),
+      perfil: datos.descripcion.trim(),
       imagen: datos.imagen.trim(),
     };
 
     try {
-      const respuesta = await fetch(url, {
-        method: metodo,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cuerpo),
-      });
-      const texto = await respuesta.text();
-      if (!respuesta.ok) {
-        throw new Error(`El servidor respondió HTTP ${respuesta.status}.\n${texto.slice(0, 500)}`);
-      }
+      if (editando && id) await editarDocente(id, cuerpo);
+      else await crearDocente(cuerpo);
 
       const mensaje = editando
-        ? "Docente actualizado correctamente."
-        : "Docente registrado correctamente.";
+        ? "Docente guardado. Se enviará a la nube cuando haya conexión."
+        : "Docente guardado. Se enviará a la nube cuando haya conexión.";
       setMensajeExito(mensaje);
       if (Platform.OS !== "web") Alert.alert("Operación exitosa", mensaje);
       router.back();

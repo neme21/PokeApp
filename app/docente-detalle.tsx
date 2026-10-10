@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { detalleDocente } from "../services/docentes";
 
 import {
   ActivityIndicator,
@@ -23,9 +24,6 @@ import {
 // 1. CONFIGURACIÓN DEL MICROSERVICIO
 // =====================================================
 
-const API =
-  process.env.EXPO_PUBLIC_DOCENTES_API_URL ||
-  "https://pokeanime-docentes-api.onrender.com";
 
 // =====================================================
 // 2. ESTRUCTURA DEL DOCENTE
@@ -34,7 +32,7 @@ const API =
 // Campos reales devueltos por PostgreSQL mediante la API.
 
 type Docente = {
-  id: number;
+  id: string;
   nombre: string;
   apellido?: string | null;
   cargo?: string | null;
@@ -153,24 +151,7 @@ export default function DocenteDetalle() {
           setCargando(true);
           setError("");
 
-          const respuesta = await fetch(
-            `${API}/docentes/${encodeURIComponent(id)}`,
-            {
-              cache: "no-store",
-            }
-          );
-
-          if (!respuesta.ok) {
-            if (respuesta.status === 404) {
-              throw new Error("El docente no fue encontrado.");
-            }
-
-            throw new Error(
-              `Error HTTP ${respuesta.status}`
-            );
-          }
-
-          const datos: Docente = await respuesta.json();
+          const datos = await detalleDocente(id);
 
           if (activo) {
             setDocente(datos);

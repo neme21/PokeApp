@@ -1,0 +1,67 @@
+POKEAPP - SQLITE OFFLINE + SINCRONIZACIÓN UNIDIRECCIONAL
+=====================================================
+
+OBJETIVO
+Android/iOS: el módulo Docentes guarda primero en SQLite y envía después a PostgreSQL en Render.
+La sincronización es SOLO LOCAL -> NUBE. No descarga docentes desde PostgreSQL.
+Web: conserva el CRUD remoto mediante la API y NO utiliza SQLite local.
+
+PASOS DE INSTALACIÓN (CMD EN WINDOWS)
+1. Extraer el ZIP en una carpeta NUEVA (guardar copia del proyecto anterior).
+2. cd C:\PokeApp2
+3. npm install
+4. npx expo install expo-crypto expo-sqlite @react-native-community/netinfo
+5. npx expo start -c
+6. Abrir en Android con Expo Go. El navegador usa la API remota, no SQLite.
+
+DESPLIEGUE DEL SERVIDOR
+- Subir los cambios de docentes-service/server.js al repositorio GitHub conectado con Render.
+- Desplegar nuevamente el servicio de docentes en Render ANTES de probar la subida.
+- El servidor expone POST /sync/docentes y crea dos tablas auxiliares en PostgreSQL
+  (docentes_sync_ops y docentes_sync_ids) con permisos CREATE del usuario de base de datos.
+- Si Render no despliega la versión nueva, las operaciones locales quedan pendientes.
+- IMPORTANTE: la ruta nueva no tiene autenticación en este prototipo, como tampoco el CRUD
+  original. Antes de producción, agregar autenticación y permisos de usuario.
+
+COMPORTAMIENTO
+- Crear/editar/eliminar en Android se realiza en SQLite y en una cola persistente.
+- Cuando hay internet, se envían las operaciones en orden.
+- El servidor recuerda op_id para evitar duplicados al reintentar una solicitud.
+- Los cambios que no pudieron subirse se conservan hasta un próximo intento.
+- Al volver la conectividad, el listener de NetInfo vuelve a intentar.
+- La pantalla de docentes muestra "Pendiente de subir" cuando corresponde.
+- Los registros ya existentes en PostgreSQL NO se importan a SQLite.
+- Las modificaciones web no se descargan a Android. Los registros creados desde
+  Android sí aparecen en web cuando la subida finaliza.
+- Los docentes creados con app/prueba-sqlite.tsx son datos de prueba aislados del
+  repositorio de sincronización. Para probar la subida use el formulario de Docentes.
+
+LIMITACIONES
+- Este prototipo no implementa inicio de sesión, permisos por usuario, ni resolución
+  de conflictos de cambios concurrentes. No se recomienda producción sin ello.
+- Si el backend remoto modifica o elimina un docente que ya se había sincronizado,
+  una edición local posterior puede recibir HTTP 409 y quedar pendiente.
+- La sincronización ocurre cuando la app está activa, no garantiza ejecución en segundo plano.
+- La instalación de la app en otro teléfono crea otra base SQLite vacía.
+- La versión web sigue editando PostgreSQL directamente, fuera del flujo offline.
+- El directorio .git, node_modules, cachés y archivos .env reales se excluyeron del ZIP.
+
+PRUEBA RECOMENDADA
+1. Desplegar backend y confirmar que funciona la API.
+2. Abrir PokeApp en Android, apagar internet y crear un docente desde el formulario.
+3. Verificar que aparece en la lista con "Pendiente de subir".
+4. Cerrar y reabrir la app y comprobar que sigue guardado.
+5. Recuperar internet, reabrir la pestaña Docentes y esperar sincronización.
+6. Consultar GET /docentes desde Swagger para verificar que llegó a PostgreSQL.
+7. Editar y eliminar un docente desde Android; verificar ambos cambios en Swagger.
+
+ARCHIVOS PRINCIPALES
+- database/sqlite.native.ts: esquema SQLite + cola.
+- database/sqlite.web.ts: inicialización vacía para navegador.
+- services/docentes.native.ts: CRUD local y subida de operaciones.
+- services/docentes.web.ts: CRUD web remoto original.
+- app/(tabs)/docente.tsx: lista, borrado y estado pendiente.
+- app/docente-formulario.tsx: alta y edición.
+- app/docente-detalle.tsx: lectura local o web según plataforma.
+- app/_layout.tsx: inicialización y reintentos de sincronización.
+- docentes-service/server.js: endpoint idempotente de sincronización.
