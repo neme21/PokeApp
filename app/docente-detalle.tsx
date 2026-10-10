@@ -19,39 +19,52 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-// URL del microservicio desplegado en Render
+// =====================================================
+// 1. CONFIGURACIÓN DEL MICROSERVICIO
+// =====================================================
+
 const API =
   process.env.EXPO_PUBLIC_DOCENTES_API_URL ||
   "https://pokeanime-docentes-api.onrender.com";
 
-// Estructura de datos del docente
+// =====================================================
+// 2. ESTRUCTURA DEL DOCENTE
+// =====================================================
+
+// Campos reales devueltos por PostgreSQL mediante la API.
+
 type Docente = {
   id: number;
   nombre: string;
-  cargo?: string;
-  programa?: string;
-  correo?: string;
-  descripcion?: string;
-  imagen?: string;
+  apellido?: string | null;
+  cargo?: string | null;
+  programa?: string | null;
+  perfil?: string | null;
+  imagen?: string | null;
 };
 
-// Componente reutilizable para mostrar información
+// =====================================================
+// 3. COMPONENTE PARA LAS TARJETAS
+// =====================================================
+
+type PropiedadesSeccion = {
+  icono: keyof typeof Ionicons.glyphMap;
+  titulo: string;
+  contenido: string;
+};
+
 function Seccion({
   icono,
   titulo,
   contenido,
-}: {
-  icono: keyof typeof Ionicons.glyphMap;
-  titulo: string;
-  contenido: string;
-}) {
+}: PropiedadesSeccion) {
   return (
     <View style={styles.tarjeta}>
       <View style={styles.tituloFila}>
         <Ionicons
           name={icono}
           size={25}
-          color="#ef3340"
+          color="#e63946"
           style={styles.icono}
         />
 
@@ -67,13 +80,17 @@ function Seccion({
   );
 }
 
-// Encabezado de la pantalla
+// =====================================================
+// 4. ENCABEZADO
+// =====================================================
+
 function Header() {
   return (
     <View style={styles.header}>
       <TouchableOpacity
         onPress={() => router.back()}
         style={styles.botonAtras}
+        activeOpacity={0.7}
       >
         <Ionicons
           name="arrow-back"
@@ -89,31 +106,44 @@ function Header() {
   );
 }
 
-// Pantalla principal
+// =====================================================
+// 5. PANTALLA PRINCIPAL
+// =====================================================
+
 export default function DocenteDetalle() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const parametros = useLocalSearchParams<{
+    id?: string | string[];
+  }>();
 
+  const id = Array.isArray(parametros.id)
+    ? parametros.id[0]
+    : parametros.id;
+
+  // Estados
   const [docente, setDocente] = useState<Docente | null>(null);
-
-  const [error, setError] = useState("");
-
   const [cargando, setCargando] = useState(true);
-
+  const [error, setError] = useState("");
   const [reintento, setReintento] = useState(0);
 
-  /*
-    Cada vez que la pantalla obtiene el foco,
-    vuelve a consultar el microservicio.
+  // =====================================================
+  // 6. CONSULTAR DOCENTE DESDE LA API
+  // =====================================================
 
-    Esto permite visualizar los cambios después
-    de actualizar un docente.
+  /*
+    useFocusEffect vuelve a consultar el docente cada vez
+    que la pantalla recupera el foco.
+
+    Esto permite mostrar los datos actualizados después
+    de editar un docente.
   */
+
   useFocusEffect(
     useCallback(() => {
       let activo = true;
 
       const cargarDocente = async () => {
         if (!id) {
+          setDocente(null);
           setError("No se proporcionó el ID del docente.");
           setCargando(false);
           return;
@@ -136,27 +166,27 @@ export default function DocenteDetalle() {
             }
 
             throw new Error(
-              `Error del servidor: ${respuesta.status}`
+              `Error HTTP ${respuesta.status}`
             );
           }
 
-          const data: Docente = await respuesta.json();
+          const datos: Docente = await respuesta.json();
 
           if (activo) {
-            setDocente(data);
+            setDocente(datos);
           }
         } catch (err) {
-          console.error("Error al consultar docente:", err);
-
           if (activo) {
+            setDocente(null);
+
             setError(
               err instanceof Error
                 ? err.message
-                : "No se pudo cargar la información del docente."
+                : "No se pudo consultar el docente."
             );
-
-            setDocente(null);
           }
+
+          console.error("Error consultando docente:", err);
         } finally {
           if (activo) {
             setCargando(false);
@@ -172,7 +202,10 @@ export default function DocenteDetalle() {
     }, [id, reintento])
   );
 
-  // Pantalla de carga
+  // =====================================================
+  // 7. PANTALLA DE CARGA
+  // =====================================================
+
   if (cargando) {
     return (
       <SafeAreaView style={styles.container}>
@@ -181,18 +214,21 @@ export default function DocenteDetalle() {
         <View style={styles.centro}>
           <ActivityIndicator
             size="large"
-            color="#ef3340"
+            color="#e63946"
           />
 
-          <Text style={styles.cargandoTexto}>
-            Consultando información del docente...
+          <Text style={styles.textoCarga}>
+            Cargando información del docente...
           </Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Pantalla de error
+  // =====================================================
+  // 8. PANTALLA DE ERROR
+  // =====================================================
+
   if (error || !docente) {
     return (
       <SafeAreaView style={styles.container}>
@@ -202,10 +238,10 @@ export default function DocenteDetalle() {
           <Ionicons
             name="alert-circle-outline"
             size={60}
-            color="#ef3340"
+            color="#e63946"
           />
 
-          <Text style={styles.errorTexto}>
+          <Text style={styles.textoError}>
             {error || "No se encontró información del docente."}
           </Text>
 
@@ -228,21 +264,43 @@ export default function DocenteDetalle() {
     );
   }
 
+  // =====================================================
+  // 9. PREPARAR INFORMACIÓN DEL DOCENTE
+  // =====================================================
+
+  const nombreCompleto = [
+    docente.nombre,
+    docente.apellido,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const perfilProfesional =
+    docente.perfil?.trim() ||
+    "Este docente todavía no tiene un perfil profesional registrado.";
+
+  // =====================================================
+  // 10. INTERFAZ PRINCIPAL
+  // =====================================================
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Encabezado fijo */}
+      {/* ENCABEZADO FIJO */}
+
       <Header />
 
-      {/* Contenido desplazable */}
+      {/* CONTENIDO DESPLAZABLE */}
+
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.body}
+        contentContainerStyle={styles.contenido}
         showsVerticalScrollIndicator={true}
         nestedScrollEnabled={true}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Información principal */}
-        <View style={styles.perfil}>
+        {/* PERFIL PRINCIPAL */}
+
+        <View style={styles.perfilPrincipal}>
           {docente.imagen ? (
             <Image
               source={{ uri: docente.imagen }}
@@ -250,7 +308,12 @@ export default function DocenteDetalle() {
               resizeMode="cover"
             />
           ) : (
-            <View style={[styles.imagen, styles.sinImagen]}>
+            <View
+              style={[
+                styles.imagen,
+                styles.sinImagen,
+              ]}
+            >
               <Ionicons
                 name="person"
                 size={60}
@@ -260,7 +323,7 @@ export default function DocenteDetalle() {
           )}
 
           <Text style={styles.nombre}>
-            {docente.nombre}
+            {nombreCompleto}
           </Text>
 
           {docente.cargo ? (
@@ -276,17 +339,26 @@ export default function DocenteDetalle() {
           ) : null}
         </View>
 
-        {/* Descripción obtenida desde PostgreSQL */}
+        {/* PERFIL PROFESIONAL DESDE POSTGRESQL */}
+
         <Seccion
           icono="document-text-outline"
-          titulo="Descripción profesional"
-          contenido={
-            docente.descripcion?.trim() ||
-            "Este docente todavía no tiene una descripción registrada."
-          }
+          titulo="Perfil profesional"
+          contenido={perfilProfesional}
         />
 
-        {/* Información académica */}
+        {/* CARGO */}
+
+        {docente.cargo ? (
+          <Seccion
+            icono="briefcase-outline"
+            titulo="Cargo académico"
+            contenido={docente.cargo}
+          />
+        ) : null}
+
+        {/* PROGRAMA */}
+
         {docente.programa ? (
           <Seccion
             icono="school-outline"
@@ -295,34 +367,17 @@ export default function DocenteDetalle() {
           />
         ) : null}
 
-        {/* Cargo */}
-        {docente.cargo ? (
-          <Seccion
-            icono="briefcase-outline"
-            titulo="Cargo"
-            contenido={docente.cargo}
-          />
-        ) : null}
+        {/* INFORMACIÓN DEL REGISTRO */}
 
-        {/* Correo institucional */}
-        {docente.correo ? (
-          <Seccion
-            icono="mail-outline"
-            titulo="Correo institucional"
-            contenido={docente.correo}
-          />
-        ) : null}
-
-        {/* Identificador del registro */}
-        <View style={styles.identificador}>
+        <View style={styles.registro}>
           <Ionicons
             name="server-outline"
-            size={17}
+            size={18}
             color="#888888"
           />
 
-          <Text style={styles.identificadorTexto}>
-            Registro de docente #{docente.id}
+          <Text style={styles.textoRegistro}>
+            Docente registrado con ID #{docente.id}
           </Text>
         </View>
 
@@ -332,8 +387,12 @@ export default function DocenteDetalle() {
   );
 }
 
+// =====================================================
+// 11. ESTILOS
+// =====================================================
+
 const styles = StyleSheet.create({
-  // Contenedor principal
+  // Pantalla
   container: {
     flex: 1,
     backgroundColor: "#f4f6f8",
@@ -341,7 +400,7 @@ const styles = StyleSheet.create({
 
   // Encabezado
   header: {
-    backgroundColor: "#ef3340",
+    backgroundColor: "#e63946",
     minHeight: 74,
     paddingHorizontal: 24,
     flexDirection: "row",
@@ -366,7 +425,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
 
-  body: {
+  contenido: {
     width: "100%",
     maxWidth: 900,
     alignSelf: "center",
@@ -375,10 +434,10 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
 
-  // Perfil principal
-  perfil: {
+  // Perfil
+  perfilPrincipal: {
     alignItems: "center",
-    marginBottom: 30,
+    marginBottom: 32,
   },
 
   imagen: {
@@ -403,7 +462,7 @@ const styles = StyleSheet.create({
 
   cargo: {
     fontSize: 18,
-    color: "#ef3340",
+    color: "#e63946",
     fontWeight: "600",
     marginTop: 8,
     textAlign: "center",
@@ -416,7 +475,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Tarjetas de información
+  // Tarjetas
   tarjeta: {
     width: "100%",
     backgroundColor: "#ffffff",
@@ -432,6 +491,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.08,
     shadowRadius: 6,
+
     elevation: 3,
   },
 
@@ -459,14 +519,14 @@ const styles = StyleSheet.create({
   },
 
   // Identificador
-  identificador: {
+  registro: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 12,
+    marginTop: 14,
   },
 
-  identificadorTexto: {
+  textoRegistro: {
     marginLeft: 8,
     color: "#888888",
     fontSize: 13,
@@ -480,22 +540,22 @@ const styles = StyleSheet.create({
     padding: 30,
   },
 
-  cargandoTexto: {
-    marginTop: 15,
+  textoCarga: {
     fontSize: 16,
     color: "#666666",
+    marginTop: 15,
     textAlign: "center",
   },
 
-  errorTexto: {
-    marginTop: 15,
+  textoError: {
     fontSize: 16,
     color: "#555555",
+    marginTop: 15,
     textAlign: "center",
   },
 
   botonReintentar: {
-    backgroundColor: "#ef3340",
+    backgroundColor: "#e63946",
     paddingHorizontal: 24,
     paddingVertical: 13,
     borderRadius: 10,
