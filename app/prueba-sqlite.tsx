@@ -11,9 +11,9 @@ import {
     guardarDocenteLocal,
     obtenerDocentesLocales,
     type DocenteLocal,
-} from "../database/docentesRepository";
+} from "../database/docentesRepository.native.ts";
 
-import { inicializarBaseDatos } from "../database/sqlite";
+import { inicializarBaseDatos } from "../database/sqlite.native";
 
 export default function PruebaSQLite() {
   const [docentes, setDocentes] = useState<DocenteLocal[]>([]);

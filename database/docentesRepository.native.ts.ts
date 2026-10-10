@@ -1,4 +1,4 @@
-import { db } from "./sqlite";
+import { db } from "./sqlite.native";
 
 export interface DocenteLocal {
   id_local: string;
