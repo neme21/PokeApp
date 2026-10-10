@@ -1,37 +1,44 @@
+
+require("dotenv").config();
+
 const http = require("http");
 const { Pool } = require("pg");
-
 const swaggerDocument = require("./swagger");
 
 const PORT = process.env.PORT || 3002;
 
-// ==============================
-// POSTGRESQL
-// ==============================
+// ======================================
+// CONEXIÓN A POSTGRESQL
+// ======================================
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL
-    ? { rejectUnauthorized: false }
-    : false,
+  ssl:
+    process.env.DATABASE_URL &&
+    !/localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL)
+      ? { rejectUnauthorized: false }
+      : false,
 });
 
-// ==============================
-// CORS
-// ==============================
+// ======================================
+// CONFIGURACIÓN CORS
+// ======================================
 
 function configurarCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
   res.setHeader(
     "Access-Control-Allow-Headers",
     "Content-Type"
   );
 }
 
-// ==============================
-// RESPUESTA JSON
-// ==============================
+// ======================================
+// RESPUESTAS JSON
+// ======================================
 
 function responderJSON(res, status, data) {
   configurarCors(res);
@@ -43,18 +50,17 @@ function responderJSON(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
-// ==============================
-// SWAGGER HTML
-// No necesita swagger-ui-express
-// ==============================
+// ======================================
+// SWAGGER
+// ======================================
 
 function mostrarSwagger(res) {
   const html = `
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>API Docentes - Swagger</title>
 
   <link
@@ -62,20 +68,17 @@ function mostrarSwagger(res) {
     href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css"
   />
 </head>
-
 <body>
+  <div id="swagger-ui"></div>
 
-<div id="swagger-ui"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-
-<script>
-  SwaggerUIBundle({
-    url: "/swagger.json",
-    dom_id: "#swagger-ui"
-  });
-</script>
-
+  <script>
+    SwaggerUIBundle({
+      url: "/swagger.json",
+      dom_id: "#swagger-ui"
+    });
+  </script>
 </body>
 </html>
 `;
@@ -89,15 +92,92 @@ function mostrarSwagger(res) {
   res.end(html);
 }
 
-// ==============================
-// SERVIDOR
-// ==============================
+// ======================================
+// LEER CUERPO JSON
+// ======================================
+
+async function leerJSON(req) {
+  let cuerpo = "";
+  let tamano = 0;
+
+  for await (const parte of req) {
+    tamano += parte.length;
+
+    if (tamano > 100000) {
+      const error = new Error("Solicitud demasiado grande");
+      error.status = 413;
+      throw error;
+    }
+
+    cuerpo += parte.toString("utf8");
+  }
+
+  try {
+    return JSON.parse(cuerpo);
+  } catch {
+    const error = new Error("JSON inválido");
+    error.status = 400;
+    throw error;
+  }
+}
+
+// ======================================
+// NORMALIZAR CAMPOS
+// ======================================
+
+function textoOpcional(valor) {
+  if (typeof valor !== "string") {
+    return null;
+  }
+
+  return valor.trim() || null;
+}
+
+function normalizarDocente(datos) {
+  if (
+    !datos ||
+    typeof datos !== "object" ||
+    Array.isArray(datos)
+  ) {
+    const error = new Error("Los datos del docente no son válidos");
+    error.status = 400;
+    throw error;
+  }
+
+  if (
+    typeof datos.nombre !== "string" ||
+    !datos.nombre.trim()
+  ) {
+    const error = new Error("El nombre es obligatorio");
+    error.status = 400;
+    throw error;
+  }
+
+  return {
+    nombre: datos.nombre.trim(),
+    apellido: textoOpcional(datos.apellido),
+    cargo: textoOpcional(datos.cargo),
+    programa: textoOpcional(datos.programa),
+
+    // El formulario puede enviar "descripcion".
+    // PostgreSQL almacena el texto en "perfil".
+    perfil: textoOpcional(
+      datos.perfil !== undefined
+        ? datos.perfil
+        : datos.descripcion
+    ),
+
+    imagen: textoOpcional(datos.imagen),
+  };
+}
+
+// ======================================
+// SERVIDOR HTTP
+// ======================================
 
 const server = http.createServer(async (req, res) => {
-
   configurarCors(res);
 
-  // Preflight CORS
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     return res.end();
@@ -105,14 +185,14 @@ const server = http.createServer(async (req, res) => {
 
   const url = new URL(
     req.url,
-    `http://${req.headers.host}`
+    `http://${req.headers.host || "localhost"}`
   );
 
   const pathname = url.pathname;
 
-  // ==============================
+  // ======================================
   // GET /
-  // ==============================
+  // ======================================
 
   if (req.method === "GET" && pathname === "/") {
     return responderJSON(res, 200, {
@@ -120,64 +200,62 @@ const server = http.createServer(async (req, res) => {
       estado: "Funcionando",
       endpoints: {
         docentes: "/docentes",
-        buscar: "/docentes?nombre=nombre",
+        buscar: "/docentes?nombre=Omar",
         detalle: "/docentes/1",
+        crear: "POST /docentes",
+        actualizar: "PUT /docentes/:id",
+        eliminar: "DELETE /docentes/:id",
         documentacion: "/api-docs",
         openapi: "/swagger.json",
       },
     });
   }
 
-  // ==============================
+  // ======================================
   // GET /swagger.json
-  // ==============================
+  // ======================================
 
   if (
     req.method === "GET" &&
     pathname === "/swagger.json"
   ) {
-    return responderJSON(
-      res,
-      200,
-      swaggerDocument
-    );
+    return responderJSON(res, 200, swaggerDocument);
   }
 
-  // ==============================
-  // GET /api-docs
-  // ==============================
+  // ======================================
+  // GET /api-docs y /docs
+  // ======================================
 
   if (
     req.method === "GET" &&
-    pathname === "/api-docs"
+    (pathname === "/api-docs" || pathname === "/docs")
   ) {
     return mostrarSwagger(res);
   }
 
-  // También permitimos /docs
-  if (
-    req.method === "GET" &&
-    pathname === "/docs"
-  ) {
-    return mostrarSwagger(res);
-  }
+  // ======================================
+  // IDENTIFICAR /docentes/:id
+  // ======================================
 
-  // ==============================
+  const coincidencia = pathname.match(
+    /^\/docentes\/(\d+)$/
+  );
+
+  // ======================================
   // GET /docentes
-  // GET /docentes?nombre=Felipe
-  // ==============================
+  // GET /docentes?nombre=Omar
+  // ======================================
 
   if (
     req.method === "GET" &&
     pathname === "/docentes"
   ) {
     try {
-      const nombre =
-        url.searchParams.get("nombre");
+      const nombre = url.searchParams.get("nombre");
 
       let resultado;
 
-      if (nombre && nombre.trim() !== "") {
+      if (nombre && nombre.trim()) {
         resultado = await pool.query(
           `
           SELECT *
@@ -197,30 +275,19 @@ const server = http.createServer(async (req, res) => {
         );
       }
 
-      return responderJSON(
-        res,
-        200,
-        resultado.rows
-      );
+      return responderJSON(res, 200, resultado.rows);
     } catch (error) {
-      console.error(
-        "Error consultando docentes:",
-        error
-      );
+      console.error("Error consultando docentes:", error);
 
       return responderJSON(res, 500, {
         error: "Error consultando docentes",
-        detalle: error.message,
       });
     }
   }
 
-  // ==============================
+  // ======================================
   // GET /docentes/:id
-  // ==============================
-
-  const coincidencia =
-    pathname.match(/^\/docentes\/(\d+)$/);
+  // ======================================
 
   if (
     req.method === "GET" &&
@@ -250,79 +317,194 @@ const server = http.createServer(async (req, res) => {
         resultado.rows[0]
       );
     } catch (error) {
-      console.error(
-        "Error consultando docente:",
-        error
-      );
+      console.error("Error consultando docente:", error);
 
       return responderJSON(res, 500, {
         error: "Error consultando docente",
-        detalle: error.message,
       });
     }
   }
 
-  // CRUD de docentes: lectura del cuerpo con límite de tamaño
-  if (["POST", "PUT"].includes(req.method) &&
-      (pathname === "/docentes" || coincidencia)) {
+  // ======================================
+  // POST /docentes
+  // ======================================
+
+  if (
+    req.method === "POST" &&
+    pathname === "/docentes"
+  ) {
     try {
-      let cuerpo = "";
-      for await (const parte of req) {
-        cuerpo += parte.toString();
-        if (cuerpo.length > 100000) return responderJSON(res, 413, {error:"Solicitud demasiado grande"});
-      }
-      let datos;
-      try { datos = JSON.parse(cuerpo); }
-      catch { return responderJSON(res, 400, {error:"JSON inválido"}); }
-      if (!datos || typeof datos.nombre !== "string" || !datos.nombre.trim()) {
-        return responderJSON(res, 400, {error:"El nombre es obligatorio"});
-      }
-      const campos = ["nombre", "cargo", "programa", "descripcion", "imagen"];
-      const valores = campos.map(c => c === "nombre" ? datos.nombre.trim() :
-        (typeof datos[c] === "string" ? datos[c].trim() || null : null));
-      if (req.method === "POST" && pathname === "/docentes") {
-        const r = await pool.query(
-          "INSERT INTO docentes (nombre,cargo,programa,descripcion,imagen) VALUES ($1,$2,$3,$4,$5) RETURNING *", valores);
-        return responderJSON(res, 201, r.rows[0]);
-      }
-      if (req.method === "PUT" && coincidencia) {
-        const r = await pool.query(
-          "UPDATE docentes SET nombre=$1,cargo=$2,programa=$3,descripcion=$4,imagen=$5 WHERE id=$6 RETURNING *",
-          [...valores, coincidencia[1]]);
-        return responderJSON(res, r.rowCount ? 200 : 404,
-          r.rows[0] || {error:"Docente no encontrado"});
-      }
+      const datos = await leerJSON(req);
+      const docente = normalizarDocente(datos);
+
+      const resultado = await pool.query(
+        `
+        INSERT INTO docentes
+        (
+          nombre,
+          apellido,
+          cargo,
+          programa,
+          perfil,
+          imagen
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+        `,
+        [
+          docente.nombre,
+          docente.apellido,
+          docente.cargo,
+          docente.programa,
+          docente.perfil,
+          docente.imagen,
+        ]
+      );
+
+      return responderJSON(
+        res,
+        201,
+        resultado.rows[0]
+      );
     } catch (error) {
-      console.error("Error guardando docente", error);
-      return responderJSON(res, 500, {error:"No se pudo guardar el docente"});
+      console.error("Error creando docente:", error);
+
+      return responderJSON(
+        res,
+        error.status || 500,
+        {
+          error:
+            error.status
+              ? error.message
+              : "No se pudo crear el docente",
+        }
+      );
     }
   }
 
-  if (req.method === "DELETE" && coincidencia) {
+  // ======================================
+  // PUT /docentes/:id
+  // ======================================
+
+  if (
+    req.method === "PUT" &&
+    coincidencia
+  ) {
     try {
-      const r = await pool.query("DELETE FROM docentes WHERE id=$1 RETURNING id", [coincidencia[1]]);
-      return responderJSON(res, r.rowCount ? 200 : 404,
-        r.rowCount ? {mensaje:"Docente eliminado", id:r.rows[0].id} : {error:"Docente no encontrado"});
+      const id = coincidencia[1];
+      const datos = await leerJSON(req);
+      const docente = normalizarDocente(datos);
+
+      // No modificamos "apellido" cuando el
+      // formulario no lo envía.
+      //
+      // Si llega un apellido, sí lo actualizamos.
+      // Los demás campos se actualizan normalmente.
+
+      const resultado = await pool.query(
+        `
+        UPDATE docentes
+        SET
+          nombre = $1,
+          apellido = COALESCE($2, apellido),
+          cargo = $3,
+          programa = $4,
+          perfil = $5,
+          imagen = $6
+        WHERE id = $7
+        RETURNING *
+        `,
+        [
+          docente.nombre,
+          docente.apellido,
+          docente.cargo,
+          docente.programa,
+          docente.perfil,
+          docente.imagen,
+          id,
+        ]
+      );
+
+      if (resultado.rows.length === 0) {
+        return responderJSON(res, 404, {
+          error: "Docente no encontrado",
+        });
+      }
+
+      return responderJSON(
+        res,
+        200,
+        resultado.rows[0]
+      );
     } catch (error) {
-      console.error("Error eliminando docente", error);
-      return responderJSON(res, 500, {error:"No se pudo eliminar el docente"});
+      console.error("Error actualizando docente:", error);
+
+      return responderJSON(
+        res,
+        error.status || 500,
+        {
+          error:
+            error.status
+              ? error.message
+              : "No se pudo actualizar el docente",
+        }
+      );
     }
   }
 
-  // ==============================
-  // 404
-  // ==============================
+  // ======================================
+  // DELETE /docentes/:id
+  // ======================================
+
+  if (
+    req.method === "DELETE" &&
+    coincidencia
+  ) {
+    try {
+      const id = coincidencia[1];
+
+      const resultado = await pool.query(
+        `
+        DELETE FROM docentes
+        WHERE id = $1
+        RETURNING id
+        `,
+        [id]
+      );
+
+      if (resultado.rows.length === 0) {
+        return responderJSON(res, 404, {
+          error: "Docente no encontrado",
+        });
+      }
+
+      return responderJSON(res, 200, {
+        mensaje: "Docente eliminado correctamente",
+        id: resultado.rows[0].id,
+      });
+    } catch (error) {
+      console.error("Error eliminando docente:", error);
+
+      return responderJSON(res, 500, {
+        error: "No se pudo eliminar el docente",
+      });
+    }
+  }
+
+  // ======================================
+  // RUTA NO ENCONTRADA
+  // ======================================
 
   return responderJSON(res, 404, {
     error: "Ruta no encontrada",
   });
 });
 
-// ==============================
-// INICIAR
-// ==============================
+// ======================================
+// INICIAR SERVIDOR
+// ======================================
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(
     `Microservicio de docentes iniciado en puerto ${PORT}`
   );
