@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Image, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback } from "react";
+import { Alert, Platform } from "react-native";
 
-const API_DOCENTES = process.env.EXPO_PUBLIC_DOCeENTES_API_URL || "https://pokeanime-docentes-api.onrender.com";
+const API_DOCENTES = process.env.EXPO_PUBLIC_DOCENTES_API_URL || "https://pokeanime-docentes-api.onrender.com";
 
 type Docente = { id:number; nombre:string; cargo?:string; programa?:string; correo?:string; descripcion?:string; imagen?:string };
 
@@ -27,13 +29,29 @@ export default function DocentesScreen() {
     } finally { setCargando(false); }
   };
 
-  useEffect(()=>{ consultar(); },[]);
+  useFocusEffect(useCallback(() => { consultar(); }, []));
+  const eliminar = (item:Docente) => {
+    const ejecutar = async () => {
+      try {
+        const r = await fetch(`${API_DOCENTES}/docentes/${item.id}`, {method:"DELETE"});
+        if (!r.ok) throw new Error(String(r.status));
+        consultar(busqueda);
+      } catch { Alert.alert("Error", "No se pudo eliminar el docente."); }
+    };
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`¿Eliminar a ${item.nombre}?`)) ejecutar();
+    } else {
+      Alert.alert("Eliminar docente", `¿Eliminar a ${item.nombre}?`, [
+        {text:"Cancelar",style:"cancel"},{text:"Eliminar",style:"destructive",onPress:ejecutar}
+      ]);
+    }
+  };
 
   return <SafeAreaView style={styles.container}>
     <View style={styles.header}><Ionicons name="school-outline" size={34} color="#fff"/><View style={{marginLeft:12}}><Text style={styles.titulo}>Docentes</Text><Text style={styles.subtitulo}>Docentes de Uninpahu</Text></View></View>
-    <View style={styles.contenido}>
+    <View style={styles.contenido}><TouchableOpacity style={[styles.verMas,{alignSelf:"flex-end",marginBottom:12}]} onPress={()=>router.push("/docente-formulario")}><Ionicons name="add" size={20} color="#fff"/><Text style={styles.btnTxt}>Nuevo docente</Text></TouchableOpacity>
       <View style={styles.buscador}><View style={styles.inputBox}><Ionicons name="search-outline" size={21} color="#777"/><TextInput style={styles.input} placeholder="Buscar docente..." value={busqueda} onChangeText={setBusqueda} onSubmitEditing={()=>consultar(busqueda)}/>{busqueda ? <TouchableOpacity onPress={()=>{setBusqueda(""); consultar();}}><Ionicons name="close-circle" size={22} color="#999"/></TouchableOpacity>:null}</View><TouchableOpacity style={styles.buscarBtn} onPress={()=>consultar(busqueda)}><Ionicons name="search" size={23} color="#fff"/></TouchableOpacity></View>
-      {cargando ? <View style={styles.estado}><ActivityIndicator size="large"/><Text style={styles.estadoTxt}>Cargando docentes...</Text></View> : error ? <View style={styles.estado}><Ionicons name="cloud-offline-outline" size={65} color="#777"/><Text style={styles.estadoTxt}>{error}</Text><TouchableOpacity style={styles.reintentar} onPress={()=>consultar()}><Text style={styles.btnTxt}>Reintentar</Text></TouchableOpacity></View> : docentes.length===0 ? <View style={styles.estado}><Ionicons name="people-outline" size={65} color="#777"/><Text style={styles.estadoTxt}>No se encontraron docentes.</Text></View> : <FlatList data={docentes} keyExtractor={x=>String(x.id)} contentContainerStyle={{paddingBottom:30}} renderItem={({item})=><View style={styles.card}>{item.imagen ? <Image source={{uri:item.imagen}} style={styles.foto}/> : <View style={[styles.foto,styles.sinFoto]}><Ionicons name="person" size={50} color="#777"/></View>}<View style={styles.info}><Text style={styles.nombre}>{item.nombre}</Text>{item.cargo?<Text style={styles.cargo}>{item.cargo}</Text>:null}{item.programa?<Text style={styles.programa}>{item.programa}</Text>:null}<TouchableOpacity style={styles.verMas} onPress={()=>router.push({pathname:"/docente-detalle",params:{id:String(item.id)}})}><Text style={styles.btnTxt}>Ver más</Text><Ionicons name="arrow-forward" size={17} color="#fff"/></TouchableOpacity></View></View>}/>} 
+      {cargando ? <View style={styles.estado}><ActivityIndicator size="large"/><Text style={styles.estadoTxt}>Cargando docentes...</Text></View> : error ? <View style={styles.estado}><Ionicons name="cloud-offline-outline" size={65} color="#777"/><Text style={styles.estadoTxt}>{error}</Text><TouchableOpacity style={styles.reintentar} onPress={()=>consultar()}><Text style={styles.btnTxt}>Reintentar</Text></TouchableOpacity></View> : docentes.length===0 ? <View style={styles.estado}><Ionicons name="people-outline" size={65} color="#777"/><Text style={styles.estadoTxt}>No se encontraron docentes.</Text></View> : <FlatList data={docentes} keyExtractor={x=>String(x.id)} contentContainerStyle={{paddingBottom:30}} renderItem={({item})=><View style={styles.card}>{item.imagen ? <Image source={{uri:item.imagen}} style={styles.foto}/> : <View style={[styles.foto,styles.sinFoto]}><Ionicons name="person" size={50} color="#777"/></View>}<View style={styles.info}><Text style={styles.nombre}>{item.nombre}</Text>{item.cargo?<Text style={styles.cargo}>{item.cargo}</Text>:null}{item.programa?<Text style={styles.programa}>{item.programa}</Text>:null}<TouchableOpacity style={styles.verMas} onPress={()=>router.push({pathname:"/docente-detalle",params:{id:String(item.id)}})}><Text style={styles.btnTxt}>Ver más</Text><Ionicons name="arrow-forward" size={17} color="#fff"/></TouchableOpacity><View style={{flexDirection:"row",gap:8,marginTop:8}}><TouchableOpacity style={[styles.verMas,{backgroundColor:"#2866ae"}]} onPress={()=>router.push({pathname:"/docente-formulario",params:{id:String(item.id)}})}><Ionicons name="pencil" size={16} color="#fff"/><Text style={styles.btnTxt}>Editar</Text></TouchableOpacity><TouchableOpacity style={[styles.verMas,{backgroundColor:"#aa2935"}]} onPress={()=>eliminar(item)}><Ionicons name="trash" size={16} color="#fff"/><Text style={styles.btnTxt}>Eliminar</Text></TouchableOpacity></View></View></View>}/>} 
     </View>
   </SafeAreaView>;
 }

@@ -5,7 +5,11 @@ module.exports = {
     title: "API Docentes UNINPAHU",
     version: "1.0.0",
     description:
+<<<<<<< HEAD
       "Microservicio para consultar docentes.",
+=======
+      "Microservicio CRUD de docentes.",
+>>>>>>> cb24961 (ff)
   },
 
   servers: [
@@ -15,8 +19,20 @@ module.exports = {
     },
   ],
 
+<<<<<<< HEAD
   paths: {
     "/docentes": {
+=======
+  components:{schemas:{DocenteEntrada:{type:"object",required:["nombre"],properties:{
+    nombre:{type:"string",example:"Nuevo docente"},cargo:{type:"string"},programa:{type:"string"},descripcion:{type:"string"},imagen:{type:"string"}
+  }}}},
+  paths: {
+    "/docentes": {
+      post: {
+        summary: "Crear docente", requestBody: { required:true, content:{ "application/json":{ schema:{ $ref:"#/components/schemas/DocenteEntrada" } } } },
+        responses:{ 201:{description:"Docente creado"},400:{description:"Datos inválidos"} }
+      },
+>>>>>>> cb24961 (ff)
       get: {
         summary: "Obtener docentes",
         description:
@@ -51,6 +67,18 @@ module.exports = {
     },
 
     "/docentes/{id}": {
+<<<<<<< HEAD
+=======
+      put: {
+        summary:"Actualizar docente", parameters:[{name:"id",in:"path",required:true,schema:{type:"integer"}}],
+        requestBody:{required:true,content:{"application/json":{schema:{$ref:"#/components/schemas/DocenteEntrada"}}}},
+        responses:{200:{description:"Docente actualizado"},404:{description:"No encontrado"}}
+      },
+      delete: {
+        summary:"Eliminar docente",parameters:[{name:"id",in:"path",required:true,schema:{type:"integer"}}],
+        responses:{200:{description:"Docente eliminado"},404:{description:"No encontrado"}}
+      },
+>>>>>>> cb24961 (ff)
       get: {
         summary:
           "Obtener un docente por ID",
