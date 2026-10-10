@@ -1,4 +1,10 @@
 import { Stack } from "expo-router";
-import { PokemonProvider } from "../context/PokemonContext";
+import { useEffect } from "react";
 import { AnimeProvider } from "../context/AnimeContext";
-export default function RootLayout(){return <PokemonProvider><AnimeProvider><Stack screenOptions={{headerShown:false}} /></AnimeProvider></PokemonProvider>}
+import { PokemonProvider } from "../context/PokemonContext";
+import { inicializarBaseDatos } from "../database/sqlite";
+export default function RootLayout(){useEffect(() => {
+  inicializarBaseDatos()
+    .then(() => console.log("SQLite inicializado correctamente"))
+    .catch((error) => console.error("Error SQLite:", error));
+}, []); return <PokemonProvider><AnimeProvider><Stack screenOptions={{headerShown:false}} /></AnimeProvider></PokemonProvider>}
