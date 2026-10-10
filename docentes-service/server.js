@@ -1,6 +1,4 @@
 
-require("dotenv").config();
-
 const http = require("http");
 const { Pool } = require("pg");
 const swaggerDocument = require("./swagger");
