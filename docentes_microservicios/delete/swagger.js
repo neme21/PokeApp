@@ -6,7 +6,7 @@ const options = {
         info: {
             title: 'Microservicio READ - Docentes',
             version: '1.0.0',
-            description: 'Consulta de docentes almacenados en PostgreSQL'
+            description: 'eliminar en PostgreSQL'
         },
         servers: [
             {
