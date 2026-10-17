@@ -1,0 +1,4 @@
+docente read - https://docente-read.onrender.com/api-docs/
+docente delete - https://docente-delete.onrender.com/api-docs/
+docente créate - https://pokeapp-sw6p.onrender.com/api-docs/
+docente update - https://pokeapp-7yhu.onrender.com/api-docs/
