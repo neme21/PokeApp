@@ -1,12 +1,167 @@
-const http=require('http');
-const {Pool}=require('pg');
-const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_URL&&!/localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL)?{rejectUnauthorized:false}:false});
-const PORT=process.env.PORT||3000;
-function reply(res,code,obj){res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Idempotency-Key','Access-Control-Allow-Methods':'GET,POST,PUT,DELETE,OPTIONS'});res.end(JSON.stringify(obj));}
-async function body(req){let s='';for await(const c of req){s+=c;if(s.length>100000)throw Object.assign(new Error('Cuerpo demasiado grande'),{status:413});}try{return JSON.parse(s)}catch{throw Object.assign(new Error('JSON inválido'),{status:400})}}
-function valid(d){if(!d||typeof d.nombre!=='string'||!d.nombre.trim()||typeof d.apellido!=='string'||!d.apellido.trim())throw Object.assign(new Error('Nombre y apellido obligatorios'),{status:400});const v=x=>typeof x==='string'?x.trim()||null:null;return {nombre:d.nombre.trim(),apellido:d.apellido.trim(),cargo:v(d.cargo),programa:v(d.programa),perfil:v(d.perfil??d.descripcion),imagen:v(d.imagen)};}
-function fail(res,e){console.error(e);reply(res,e.status||500,{error:e.status?e.message:'Error interno'});}
-async function once(req,action){const key=req.headers['idempotency-key'];if(typeof key!=='string'||!/^[0-9a-f-]{36}$/i.test(key))throw Object.assign(new Error('Idempotency-Key UUID obligatorio'),{status:400});const c=await pool.connect();try{await c.query('BEGIN');await c.query('CREATE TABLE IF NOT EXISTS docentes_sync_ops (op_id TEXT PRIMARY KEY,respuesta JSONB NOT NULL)');await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',[key]);const prev=await c.query('SELECT respuesta FROM docentes_sync_ops WHERE op_id=$1',[key]);if(prev.rowCount){await c.query('COMMIT');return prev.rows[0].respuesta;}const result=await action(c);await c.query('INSERT INTO docentes_sync_ops(op_id,respuesta) VALUES ($1,$2::jsonb)',[key,JSON.stringify(result)]);await c.query('COMMIT');return result;}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}}
 
-const SERVICE='read';
-http.createServer(async(req,res)=>{const path=new URL(req.url,'http://localhost').pathname;if(req.method==='OPTIONS')return reply(res,204,{});if(req.method==='GET'&&path==='/health')return reply(res,200,{service:SERVICE,ok:true});try{if(req.method==='GET'&&path==='/docentes'){const r=await pool.query('SELECT * FROM docentes ORDER BY id');return reply(res,200,r.rows);}if(req.method==='GET'&&/^\/docentes\/\d+$/.test(path)){const id=Number(path.split('/')[2]);const r=await pool.query('SELECT * FROM docentes WHERE id=$1',[id]);return reply(res,r.rowCount?200:404,r.rows[0]||{error:'No encontrado'});}return reply(res,404,{error:'Ruta no encontrada'});}catch(e){fail(res,e)}}).listen(PORT,()=>console.log(SERVICE,PORT));
+const express = require('express');
+const { Pool } = require('pg');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const SERVICE = 'read';
+
+// CONEXIÓN A POSTGRESQL
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL &&
+        !/localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL)
+        ? { rejectUnauthorized: false }
+        : false
+});
+
+// MIDDLEWARES
+app.use(express.json());
+
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Idempotency-Key'
+    );
+    res.header(
+        'Access-Control-Allow-Methods',
+        'GET, POST, PUT, DELETE, OPTIONS'
+    );
+
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+
+    next();
+});
+
+// SWAGGER
+app.use(
+    '/api-docs',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec)
+);
+
+// HEALTH CHECK
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        service: SERVICE,
+        ok: true
+    });
+});
+
+/**
+ * @swagger
+ * /docentes:
+ *   get:
+ *     summary: Obtener todos los docentes
+ *     description: Consulta todos los docentes almacenados en PostgreSQL.
+ *     tags:
+ *       - Docentes READ
+ *     responses:
+ *       200:
+ *         description: Lista de docentes obtenida correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Docente'
+ *       500:
+ *         description: Error interno del servidor
+ */
+app.get('/docentes', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM docentes ORDER BY id'
+        );
+
+        res.status(200).json(result.rows);
+
+    } catch (error) {
+        console.error('Error consultando docentes:', error);
+
+        res.status(500).json({
+            error: 'Error interno'
+        });
+    }
+});
+
+/**
+ * @swagger
+ * /docentes/{id}:
+ *   get:
+ *     summary: Obtener un docente por ID
+ *     description: Consulta un docente específico en PostgreSQL.
+ *     tags:
+ *       - Docentes READ
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Identificador del docente
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *     responses:
+ *       200:
+ *         description: Docente encontrado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Docente'
+ *       400:
+ *         description: ID inválido
+ *       404:
+ *         description: Docente no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ */
+app.get('/docentes/:id', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+
+        if (!Number.isSafeInteger(id) || id <= 0) {
+            return res.status(400).json({
+                error: 'ID inválido'
+            });
+        }
+
+        const result = await pool.query(
+            'SELECT * FROM docentes WHERE id=$1',
+            [id]
+        );
+
+        if (!result.rowCount) {
+            return res.status(404).json({
+                error: 'Docente no encontrado'
+            });
+        }
+
+        res.status(200).json(result.rows[0]);
+
+    } catch (error) {
+        console.error('Error consultando docente:', error);
+
+        res.status(500).json({
+            error: 'Error interno'
+        });
+    }
+});
+
+// RUTAS NO ENCONTRADAS
+app.use((req, res) => {
+    res.status(404).json({
+        error: 'Ruta no encontrada'
+    });
+});
+
+// INICIAR SERVIDOR
+app.listen(PORT, () => {
+    console.log(
+        `Microservicio ${SERVICE} ejecutándose en puerto ${PORT}`
+    );
+});

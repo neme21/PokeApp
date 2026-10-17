@@ -1,20 +1,22 @@
+
 const swaggerJsdoc = require('swagger-jsdoc');
 
-const options = {
+const swaggerSpec = swaggerJsdoc({
     definition: {
         openapi: '3.0.0',
         info: {
-            title: 'Microservicio READ - Docentes',
+            title: 'Microservicio DELETE - Docentes',
             version: '1.0.0',
-            description: 'eliminar en PostgreSQL'
+            description:
+                'API independiente para eliminar docentes de PostgreSQL'
         },
         servers: [
             {
-                url: 'https://docente-read.onrender.com'
+                url: '/'
             }
         ]
     },
     apis: ['./server.js']
-};
+});
 
-module.exports = swaggerJsdoc(options);
+module.exports = swaggerSpec;
