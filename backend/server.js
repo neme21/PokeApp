@@ -6,9 +6,14 @@ const cors = require("cors");
 const { Pool } = require("pg");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
+const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ============================================
+// CONFIGURACIÓN POSTGRESQL
+// ============================================
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -20,18 +25,32 @@ const pool = new Pool({
 app.use(cors());
 app.use(express.json({ limit: "16kb" }));
 
-// Swagger
+// ============================================
+// CONFIGURACIÓN SWAGGER
+// ============================================
+
 const spec = swaggerJsdoc({
   definition: {
     openapi: "3.0.0",
     info: {
       title: "PokeAnime - Pokémon API",
-      version: "1.1.0",
+      version: "1.2.0",
       description:
         "Microservicio Node.js con PostgreSQL. " +
-        "Permite consultar e insertar Pokémon.",
+        "Permite consultar e insertar Pokémon desde PokeAPI.",
     },
     servers: [{ url: "/" }],
+    components: {
+      securitySchemes: {
+        AdminKey: {
+          type: "apiKey",
+          in: "header",
+          name: "x-admin-key",
+          description:
+            "Clave administrativa configurada en Render",
+        },
+      },
+    },
   },
   apis: [__filename],
 });
@@ -44,7 +63,10 @@ app.use(
 
 app.get("/openapi.json", (_, res) => res.json(spec));
 
-// Formatear registros
+// ============================================
+// FUNCIONES AUXILIARES
+// ============================================
+
 function format(p) {
   return {
     id: p.id,
@@ -61,10 +83,47 @@ function format(p) {
 
 function fail(res, error) {
   console.error("[Pokemon API]", error);
+
   return res.status(500).json({
     mensaje: "Error interno del servidor",
   });
 }
+
+// Validar clave administrativa
+function verificarAdmin(req, res, next) {
+  const claveConfigurada = process.env.ADMIN_API_KEY;
+  const claveRecibida = req.get("x-admin-key");
+
+  if (!claveConfigurada) {
+    return res.status(503).json({
+      mensaje: "Clave administrativa no configurada",
+    });
+  }
+
+  if (!claveRecibida) {
+    return res.status(401).json({
+      mensaje: "Debes proporcionar la clave administrativa",
+    });
+  }
+
+  const a = Buffer.from(claveRecibida);
+  const b = Buffer.from(claveConfigurada);
+
+  if (
+    a.length !== b.length ||
+    !crypto.timingSafeEqual(a, b)
+  ) {
+    return res.status(401).json({
+      mensaje: "Clave administrativa incorrecta",
+    });
+  }
+
+  next();
+}
+
+// ============================================
+// ESTADO DEL MICROSERVICIO
+// ============================================
 
 /**
  * @openapi
@@ -78,9 +137,14 @@ function fail(res, error) {
 app.get("/", (_, res) => {
   res.json({
     mensaje: "Microservicio Pokémon funcionando",
+    version: "1.2.0",
     swagger: "/api-docs",
   });
 });
+
+// ============================================
+// LISTAR POKÉMON
+// ============================================
 
 /**
  * @openapi
@@ -97,11 +161,15 @@ app.get("/pokemon", async (_, res) => {
       "SELECT * FROM pokemon ORDER BY id"
     );
 
-    res.json(rows.map(format));
+    return res.json(rows.map(format));
   } catch (error) {
-    fail(res, error);
+    return fail(res, error);
   }
 });
+
+// ============================================
+// BUSCAR POKÉMON POR NOMBRE O ID
+// ============================================
 
 /**
  * @openapi
@@ -134,15 +202,19 @@ app.get("/pokemon/:busqueda", async (req, res) => {
 
     if (!rows[0]) {
       return res.status(404).json({
-        mensaje: "Pokémon no encontrado",
+        mensaje: "Pokémon no encontrado en la base de datos",
       });
     }
 
-    res.json(format(rows[0]));
+    return res.json(format(rows[0]));
   } catch (error) {
-    fail(res, error);
+    return fail(res, error);
   }
 });
+
+// ============================================
+// INSERTAR POKÉMON DESDE POKEAPI
+// ============================================
 
 /**
  * @openapi
@@ -150,9 +222,9 @@ app.get("/pokemon/:busqueda", async (req, res) => {
  *   post:
  *     summary: Inserta un Pokémon desde PokeAPI
  *     description: |
- *       Consulta PokeAPI por nombre y guarda sus
- *       datos en PostgreSQL.
- *       Requiere una clave administrativa.
+ *       Consulta PokeAPI utilizando el nombre del Pokémon
+ *       y guarda sus datos en PostgreSQL.
+ *       Requiere autorización administrativa.
  *     security:
  *       - AdminKey: []
  *     requestBody:
@@ -169,147 +241,151 @@ app.get("/pokemon/:busqueda", async (req, res) => {
  *                 example: heracross
  *     responses:
  *       '201':
- *         description: Pokémon insertado
+ *         description: Pokémon insertado correctamente
  *       '400':
  *         description: Nombre inválido
  *       '401':
  *         description: No autorizado
  *       '404':
- *         description: Pokémon no existe en PokeAPI
+ *         description: Pokémon no encontrado en PokeAPI
  *       '409':
  *         description: Pokémon ya registrado
  *       '502':
  *         description: Error consultando PokeAPI
+ *       '503':
+ *         description: Clave administrativa no configurada
  */
-app.post("/pokemon", async (req, res) => {
-  try {
-    // No permitir inserciones públicas sin autorización.
-    if (!process.env.ADMIN_API_KEY) {
-      return res.status(503).json({
-        mensaje: "Clave administrativa no configurada",
-      });
-    }
-
-    if (req.get("x-admin-key") !== process.env.ADMIN_API_KEY) {
-      return res.status(401).json({
-        mensaje: "No autorizado",
-      });
-    }
-
-    const nombre = req.body?.nombre;
-
-    if (
-      typeof nombre !== "string" ||
-      !/^[a-z0-9-]{1,60}$/i.test(nombre.trim())
-    ) {
-      return res.status(400).json({
-        mensaje: "Nombre de Pokémon inválido",
-      });
-    }
-
-    const nombreNormalizado = nombre.trim().toLowerCase();
-
-    const existente = await pool.query(
-      "SELECT id FROM pokemon WHERE LOWER(nombre) = $1",
-      [nombreNormalizado]
-    );
-
-    if (existente.rows.length > 0) {
-      return res.status(409).json({
-        mensaje: "Este Pokémon ya está registrado",
-      });
-    }
-
-    // Consultar PokeAPI
-    let respuesta;
-
+app.post(
+  "/pokemon",
+  verificarAdmin,
+  async (req, res) => {
     try {
-      respuesta = await fetch(
-        `https://pokeapi.co/api/v2/pokemon/${encodeURIComponent(nombreNormalizado)}`,
-        {
-          signal: AbortSignal.timeout(15000),
-        }
+      const nombre = req.body?.nombre;
+
+      if (
+        typeof nombre !== "string" ||
+        !/^[a-z0-9-]{1,60}$/i.test(nombre.trim())
+      ) {
+        return res.status(400).json({
+          mensaje: "Nombre de Pokémon inválido",
+        });
+      }
+
+      const nombreNormalizado =
+        nombre.trim().toLowerCase();
+
+      // Verificar duplicados por nombre
+      const existente = await pool.query(
+        "SELECT id FROM pokemon WHERE LOWER(nombre) = $1",
+        [nombreNormalizado]
       );
+
+      if (existente.rows.length > 0) {
+        return res.status(409).json({
+          mensaje: "Este Pokémon ya está registrado",
+        });
+      }
+
+      // Consultar PokeAPI
+      let respuesta;
+
+      try {
+        respuesta = await fetch(
+          `https://pokeapi.co/api/v2/pokemon/${encodeURIComponent(nombreNormalizado)}`,
+          {
+            signal: AbortSignal.timeout(15000),
+            headers: {
+              Accept: "application/json",
+            },
+          }
+        );
+      } catch (error) {
+        console.error("[PokeAPI]", error.message);
+
+        return res.status(502).json({
+          mensaje: "No se pudo conectar con PokeAPI",
+        });
+      }
+
+      if (respuesta.status === 404) {
+        return res.status(404).json({
+          mensaje: "Pokémon no encontrado en PokeAPI",
+        });
+      }
+
+      if (!respuesta.ok) {
+        return res.status(502).json({
+          mensaje: "PokeAPI no respondió correctamente",
+        });
+      }
+
+      const pokemon = await respuesta.json();
+
+      const movimiento1 =
+        pokemon.moves?.[0]?.move?.name || "N/A";
+
+      const movimiento2 =
+        pokemon.moves?.[1]?.move?.name || "N/A";
+
+      const imagen =
+        pokemon.sprites?.other?.["official-artwork"]
+          ?.front_default ||
+        pokemon.sprites?.front_default ||
+        null;
+
+      // Insertar en PostgreSQL.
+      // Se utiliza el ID oficial de PokeAPI.
+      const resultado = await pool.query(
+        `INSERT INTO pokemon
+          (
+            id,
+            nombre,
+            altura,
+            peso,
+            imagen,
+            movimiento1,
+            movimiento2
+          )
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [
+          pokemon.id,
+          pokemon.name,
+          pokemon.height,
+          pokemon.weight,
+          imagen,
+          movimiento1,
+          movimiento2,
+        ]
+      );
+
+      return res.status(201).json({
+        mensaje: "Pokémon insertado correctamente",
+        pokemon: format(resultado.rows[0]),
+      });
+
     } catch (error) {
-      console.error("Error PokeAPI:", error.message);
-      return res.status(502).json({
-        mensaje: "No se pudo conectar con PokeAPI",
-      });
+      if (error.code === "23505") {
+        return res.status(409).json({
+          mensaje:
+            "Ya existe un Pokémon con ese ID o nombre",
+        });
+      }
+
+      return fail(res, error);
     }
-
-    if (respuesta.status === 404) {
-      return res.status(404).json({
-        mensaje: "Pokémon no encontrado en PokeAPI",
-      });
-    }
-
-    if (!respuesta.ok) {
-      return res.status(502).json({
-        mensaje: "PokeAPI no respondió correctamente",
-      });
-    }
-
-    const pokemon = await respuesta.json();
-
-    const movimiento1 =
-      pokemon.moves?.[0]?.move?.name || "N/A";
-
-    const movimiento2 =
-      pokemon.moves?.[1]?.move?.name || "N/A";
-
-    const imagen =
-      pokemon.sprites?.other?.["official-artwork"]
-        ?.front_default ||
-      pokemon.sprites?.front_default ||
-      null;
-
-    // Mantener el ID oficial de PokeAPI.
-    // La tabla debe admitir IDs explícitos.
-    const resultado = await pool.query(
-      `INSERT INTO pokemon
-        (id, nombre, altura, peso, imagen,
-         movimiento1, movimiento2)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [
-        pokemon.id,
-        pokemon.name,
-        pokemon.height,
-        pokemon.weight,
-        imagen,
-        movimiento1,
-        movimiento2,
-      ]
-    );
-
-    return res.status(201).json({
-      mensaje: "Pokémon insertado correctamente",
-      pokemon: format(resultado.rows[0]),
-    });
-  } catch (error) {
-    if (error.code === "23505") {
-      return res.status(409).json({
-        mensaje: "Ya existe un Pokémon con ese ID o nombre",
-      });
-    }
-
-    return fail(res, error);
   }
-});
+);
 
-// Incluir autenticación administrativa en Swagger.
-spec.components = {
-  ...(spec.components || {}),
-  securitySchemes: {
-    ...(spec.components?.securitySchemes || {}),
-    AdminKey: {
-      type: "apiKey",
-      in: "header",
-      name: "x-admin-key",
-    },
-  },
-};
+// ============================================
+// INICIAR SERVIDOR
+// ============================================
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Pokémon API en puerto ${PORT}`);
+  console.log(
+    `Pokémon API escuchando en puerto ${PORT}`
+  );
+  console.log(
+    `Swagger disponible en /api-docs`
+  );
 });
