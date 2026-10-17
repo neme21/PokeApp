@@ -42,22 +42,54 @@ app.use(
 );
 
 // Recuperar datos de una API con tiempo máximo.
+
 async function consultarAPI(url) {
-  const respuesta = await fetch(url, {
-    signal: AbortSignal.timeout(15000),
-    headers: {
-      Accept: "application/json",
-    },
-  });
+  const inicio = Date.now();
 
-  if (!respuesta.ok) {
-    throw new Error(
-      `Error HTTP ${respuesta.status} consultando ${url}`
-    );
+  console.log(`[IA] Consultando: ${url}`);
+
+  for (let intento = 1; intento <= 2; intento++) {
+    try {
+      const respuesta = await fetch(url, {
+        signal: AbortSignal.timeout(90000),
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!respuesta.ok) {
+        throw new Error(
+          `HTTP ${respuesta.status}: ${url}`
+        );
+      }
+
+      const datos = await respuesta.json();
+
+      console.log(
+        `[IA] Consulta correcta en ${
+          ((Date.now() - inicio) / 1000).toFixed(1)
+        } segundos`
+      );
+
+      return datos;
+    } catch (error) {
+      console.error(
+        `[IA] Intento ${intento} fallido:`,
+        error.message
+      );
+
+      // Reintentar solamente fallos de red o timeout.
+      const recuperable =
+        error.name === "TimeoutError" ||
+        error.name === "AbortError" ||
+        error instanceof TypeError;
+
+      if (!recuperable || intento === 2) {
+        throw error;
+      }
+    }
   }
-
-  return respuesta.json();
-}
+};
 
 // Admite arrays o respuestas envueltas en un objeto.
 function extraerLista(datos, posiblesClaves) {
@@ -278,6 +310,27 @@ REGLAS OBLIGATORIAS:
 11. Para preguntas fuera del contexto, devuelve
     referencias vacías.
 12. Responde en español y de forma clara.
+
+13. Una pregunta está dentro del contexto cuando
+    trata sobre uno o varios personajes o Pokémon
+    registrados, aunque el dato solicitado no
+    esté disponible.
+
+14. Si el personaje está registrado pero el dato
+    solicitado no existe en el catálogo, devuelve
+    dentro_contexto=true y explica claramente
+    que no dispones de esa información.
+
+15. En ese caso, incluye la referencia del
+    personaje registrado en el array referencias.
+
+16. No clasifiques una pregunta como fuera de
+    contexto únicamente porque falta el atributo
+    solicitado.
+
+17. Nunca completes información faltante
+    utilizando conocimientos generales.
+
 `;
 
     const respuestaIA = await openai.responses.create({
