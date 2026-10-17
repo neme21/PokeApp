@@ -68,9 +68,26 @@ export default function TabLayout() {
           title: "Datos",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="list" size={size} color={color} />
+
+            
           ),
         }}
+/>
+       
+  <Tabs.Screen
+      name="asistente"
+  options={{
+    title: "Asistente IA",
+    tabBarIcon: ({ color, size }) => (
+      <Ionicons
+        name="chatbubbles-outline"
+        size={size}
+        color={color}
       />
+    ),
+  }}
+/>
+
     </Tabs>
   );
 }
