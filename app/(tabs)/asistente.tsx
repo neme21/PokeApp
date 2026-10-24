@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 
-import { preguntarIA } from "../../services/asistenteService";
+import { preguntarIA, type ProveedorIA, type TiempoEspera } from "../../services/asistenteService";
 
 type Mensaje = {
   id: string;
@@ -39,6 +39,8 @@ export default function AsistenteScreen() {
 
   const [pregunta, setPregunta] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [proveedor, setProveedor] = useState<ProveedorIA>("gemini");
+  const [tiempoEspera, setTiempoEspera] = useState<TiempoEspera>(40);
 
   const scrollRef = useRef<ScrollView>(null);
   const enviandoRef = useRef(false);
@@ -66,7 +68,7 @@ export default function AsistenteScreen() {
     ]);
 
     try {
-      const resultado = await preguntarIA(texto);
+      const resultado = await preguntarIA(texto, proveedor, tiempoEspera);
 
       const mensajeIA: Mensaje = {
         id: `${Date.now()}-ia`,
@@ -149,6 +151,39 @@ export default function AsistenteScreen() {
           Platform.OS === "ios" ? 90 : 0
         }
       >
+        <View style={styles.configuracion}>
+          <Text style={styles.configTitulo}>Proveedor de IA</Text>
+          <View style={styles.opciones}>
+            
+{(["gemini", "groq", "openrouter", "openai"] as ProveedorIA[]).map((p) => (
+  <TouchableOpacity
+    key={p}
+    disabled={cargando}
+    onPress={() => setProveedor(p)}
+    style={[
+      styles.opcion,
+      proveedor === p && styles.opcionActiva,
+    ]}
+  >
+    <Text
+      style={[
+        styles.opcionTexto,
+        proveedor === p && styles.opcionTextoActivo,
+      ]}
+    >
+      {p === "openai"
+        ? "OpenAI"
+        : p === "gemini"
+        ? "Gemini"
+        : p === "groq"
+        ? "Groq"
+        : "OpenRouter"}
+    </Text>
+  </TouchableOpacity>
+))}
+
+          </View>
+        </View>
         <ScrollView
           ref={scrollRef}
           style={styles.chat}
@@ -251,6 +286,13 @@ export default function AsistenteScreen() {
 }
 
 const styles = StyleSheet.create({
+  configuracion: { backgroundColor: "#10233B", padding: 12, gap: 8 },
+  configTitulo: { color: "#DDEBFA", fontSize: 12, fontWeight: "600" },
+  opciones: { flexDirection: "row", gap: 7, marginBottom: 4 },
+  opcion: { flex: 1, borderColor: "#48647F", borderWidth: 1, borderRadius: 8, paddingVertical: 9, alignItems: "center" },
+  opcionActiva: { backgroundColor: "#1769AA", borderColor: "#48A9FF" },
+  opcionTexto: { color: "#BAC9DB", fontSize: 12, fontWeight: "600" },
+  opcionTextoActivo: { color: "#FFFFFF" },
   contenedor: {
     flex: 1,
     backgroundColor: "#0B1526",
